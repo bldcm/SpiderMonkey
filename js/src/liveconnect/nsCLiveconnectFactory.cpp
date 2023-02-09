@@ -48,77 +48,32 @@
 #include "prmon.h"
 #include "prlog.h"
 
+#include "nsXPCOM.h"
 #include "nsCLiveconnect.h"
 #include "nsCLiveconnectFactory.h"
 #include "nsIComponentManager.h"
+#include "nsIComponentRegistrar.h"
 
-static NS_DEFINE_IID(kISupportsIID,    NS_ISUPPORTS_IID);
-static NS_DEFINE_IID(kIFactoryIID,     NS_IFACTORY_IID);
 static NS_DEFINE_CID(kCLiveconnectCID, NS_CLIVECONNECT_CID);
-
-/*+++++++++++++++++++++++++++++++++++++++++++++++++
- * NSGetFactory:
- * Provides entry point to liveconnect dll.
- +++++++++++++++++++++++++++++++++++++++++++++++++*/
-
-extern "C" NS_EXPORT nsresult
-NSGetFactory(nsISupports* serviceMgr,
-             const nsCID &aClass,
-             const char *aClassName,
-             const char *aContractID,
-             nsIFactory **aFactory)
-{
-    
-    if (!aClass.Equals(kCLiveconnectCID)) {
-        return NS_ERROR_FACTORY_NOT_LOADED;     // XXX right error?
-    }
-    nsCLiveconnectFactory* factory = new nsCLiveconnectFactory();
-    if (factory == NULL)
-        return NS_ERROR_OUT_OF_MEMORY;
-    factory->AddRef();
-    *aFactory = factory;
-    return NS_OK;
-}
-
-extern "C" NS_EXPORT PRBool
-NSCanUnload(nsISupports* serviceMgr)
-{
-    return PR_FALSE;
-}
 
 extern "C" NS_EXPORT nsresult
 JSJ_RegisterLiveConnectFactory()
 {
+    nsCOMPtr<nsIComponentRegistrar> registrar;
+    nsresult rv = NS_GetComponentRegistrar(getter_AddRefs(registrar));
+    if (NS_FAILED(rv))
+        return rv;
+      
     nsCOMPtr<nsIFactory> factory = new nsCLiveconnectFactory;
     if (factory) {
-        return nsComponentManager::RegisterFactory(kCLiveconnectCID, "LiveConnect",
-                                                  "@mozilla.org/liveconnect/liveconnect;1",
-                                                  factory, PR_TRUE);
+        return registrar->RegisterFactory(kCLiveconnectCID, "LiveConnect",
+                                          "@mozilla.org/liveconnect/liveconnect;1",
+                                          factory);
     }
-    return NS_ERROR_FACTORY_NOT_LOADED;
+    return NS_ERROR_OUT_OF_MEMORY;
 }
 
-////////////////////////////////////////////////////////////////////////////
-// from nsISupports 
-
-NS_METHOD
-nsCLiveconnectFactory::QueryInterface(const nsIID& aIID, void** aInstancePtr) 
-{
-    PR_ASSERT(NULL != aInstancePtr); 
-    if (NULL == aInstancePtr) {
-        return NS_ERROR_NULL_POINTER; 
-    } 
-    if (aIID.Equals(kIFactoryIID) ||
-        aIID.Equals(kISupportsIID)) {
-        *aInstancePtr = (void*) this; 
-        AddRef(); 
-        return NS_OK; 
-    }
-    return NS_NOINTERFACE; 
-}
-
-NS_IMPL_ADDREF(nsCLiveconnectFactory)
-NS_IMPL_RELEASE(nsCLiveconnectFactory)
+NS_IMPL_ISUPPORTS1(nsCLiveconnectFactory, nsIFactory)
 
 ////////////////////////////////////////////////////////////////////////////
 // from nsIFactory:
@@ -131,8 +86,7 @@ nsCLiveconnectFactory::CreateInstance(nsISupports *aOuter, REFNSIID aIID, void *
 
 	*aResult  = NULL;
 
-	if (aOuter && !aIID.Equals(kISupportsIID))
-		return NS_ERROR_INVALID_ARG;
+    NS_ENSURE_PROPER_AGGREGATION(aOuter, aIID);
 
 	nsCLiveconnect* liveconnect = new nsCLiveconnect(aOuter);
 	if (liveconnect == NULL)

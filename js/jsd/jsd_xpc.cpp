@@ -1333,6 +1333,30 @@ jsdScript::GetTotalExecutionTime(double *_rval)
 }
 
 NS_IMETHODIMP
+jsdScript::GetMinOwnExecutionTime(double *_rval)
+{
+    ASSERT_VALID_EPHEMERAL;
+    *_rval = JSD_GetScriptMinOwnExecutionTime (mCx, mScript);
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+jsdScript::GetMaxOwnExecutionTime(double *_rval)
+{
+    ASSERT_VALID_EPHEMERAL;
+    *_rval = JSD_GetScriptMaxOwnExecutionTime (mCx, mScript);
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+jsdScript::GetTotalOwnExecutionTime(double *_rval)
+{
+    ASSERT_VALID_EPHEMERAL;
+    *_rval = JSD_GetScriptTotalOwnExecutionTime (mCx, mScript);
+    return NS_OK;
+}
+
+NS_IMETHODIMP
 jsdScript::ClearProfileData()
 {
     ASSERT_VALID_EPHEMERAL;
@@ -2169,18 +2193,20 @@ NS_IMETHODIMP
 jsdValue::GetProperties (jsdIProperty ***propArray, PRUint32 *length)
 {
     ASSERT_VALID_EPHEMERAL;
-    if (!JSD_IsValueObject(mCx, mValue)) {
+    *propArray = nsnull;
+    if (length)
         *length = 0;
-        *propArray = 0;
-        return NS_OK;
-    }
 
-    jsdIProperty **pa_temp;
-    PRUint32 prop_count = JSD_GetCountOfProperties (mCx, mValue);
-    
-    pa_temp = NS_STATIC_CAST(jsdIProperty **,
-                             nsMemory::Alloc(sizeof (jsdIProperty *) * 
-                                             prop_count));
+    PRUint32 prop_count = JSD_IsValueObject(mCx, mValue)
+        ? JSD_GetCountOfProperties (mCx, mValue)
+        : 0;
+    NS_ENSURE_TRUE(prop_count, NS_OK);
+
+    jsdIProperty **pa_temp =
+        NS_STATIC_CAST(jsdIProperty **,
+                       nsMemory::Alloc(sizeof (jsdIProperty *) * 
+                                       prop_count));
+    NS_ENSURE_TRUE(pa_temp, NS_ERROR_OUT_OF_MEMORY);
 
     PRUint32     i    = 0;
     JSDProperty *iter = NULL;
@@ -2560,6 +2586,9 @@ jsdService::GetPauseDepth(PRUint32 *_rval)
 NS_IMETHODIMP
 jsdService::Pause(PRUint32 *_rval)
 {
+    if (!mCx)
+        return NS_ERROR_NOT_INITIALIZED;
+
     if (++mPauseLevel == 1) {
         JSD_SetErrorReporter (mCx, NULL, NULL);
         JSD_ClearThrowHook (mCx);
@@ -2579,6 +2608,9 @@ jsdService::Pause(PRUint32 *_rval)
 NS_IMETHODIMP
 jsdService::UnPause(PRUint32 *_rval)
 {
+    if (!mCx)
+        return NS_ERROR_NOT_INITIALIZED;
+
     if (mPauseLevel == 0)
         return NS_ERROR_NOT_AVAILABLE;
 
